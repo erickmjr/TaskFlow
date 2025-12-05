@@ -8,19 +8,19 @@ datasource db {
 }
 
 model Task {
-  id          String    @id @default(uuid())
+  id          Int       @id @default(autoincrement())
   title       String
   description String?
   createdAt   DateTime  @default(now())
   dueDate     DateTime?
   updatedAt   DateTime  @updatedAt
   done        Boolean   @default(false)
-  userId      String
+  userId      Int
   user        User      @relation(fields: [userId], references: [id])
 }
 
 model User {
-  id        String   @id @default(uuid())
+  id        Int      @id @default(autoincrement())
   name      String
   email     String   @unique
   password  String
