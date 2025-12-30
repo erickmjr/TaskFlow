@@ -58,7 +58,7 @@ export const deleteTask = async (taskId: number, userId: number) => {
 
 export const updateFullTask = async (taskId: number, userId: number, title: string, description: string, dueDate: Date, done: boolean) => {
 
-    if (isNaN(taskId)) return { status: 400, body: { error: 'Invalid task id.' } };
+    if (Number(taskId)) return { status: 400, body: { error: 'Invalid task id.' } };
 
     if (!title || !description || dueDate === undefined || done === undefined) {
         return { status: 400, body: { error: 'PUT requires a full task payload.' } };

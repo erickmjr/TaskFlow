@@ -1,5 +1,5 @@
 import { PrismaClient } from "../../generated/prisma/client";
-import { Pool } from "../../node_modules/@types/pg";
+import { Pool } from "pg";
 import { PrismaPg } from '@prisma/adapter-pg';
 import { TaskModel } from "../models/Task";
 

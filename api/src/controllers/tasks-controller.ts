@@ -1,80 +1,108 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from "../../generated/prisma/client";
-import { Pool } from "../../node_modules/@types/pg";
-import { PrismaPg } from '@prisma/adapter-pg';
 import * as TasksServices from '../services/tasks-services'
 
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL
-});
-
-const adapter = new PrismaPg(pool);
-
-const prisma = new PrismaClient({ adapter });
-
 export const getTasks = async (req: Request, res: Response) => {
+    try {
+        const userId = Number(req.user?.id);
 
-    const userId = Number(req.user?.id);
+        const response = await TasksServices.getAllTasks(userId);
 
-    const response = await TasksServices.getAllTasks(userId);
+        res.status(response.status).json(response.body);
+    } catch (error) {
+        return res.status(500).json({ error: 'Internal Server Error.' });
+    }
+};
 
-    res.status(response.status).json(response.body);
+export const getTaskById = async (req: Request, res: Response) => {
+    try {
+        const userId = Number(req.user?.id);
+        const taskId = Number(req.params.id);
+
+        if (isNaN(taskId)) return res.status(400).json({ error: 'Invalid task ID.' });
+
+        const response = await TasksServices.getTaskById(taskId, userId);
+
+        return res.status(response.status).json(response.body);
+    } catch (error) {
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
 }
 
 export const postTask = async (req: Request, res: Response) => {
-    const userId = Number(req.user?.id);
+    try {
+        const userId = Number(req.user?.id);
 
-    const { title, description, rawDueDate } = req.body;
+        if (!req.body) return res.status(400).json({ error: 'Request body is missing.' });
 
-    const response = await TasksServices.createTask(userId, title, description, rawDueDate);
+        const { title, description, rawDueDate } = req.body;
 
-    res.status(response.status).json(response.body);
-}
+        const response = await TasksServices.createTask(userId, title, description, rawDueDate);
+
+        res.status(response.status).json(response.body);
+    } catch (error) {
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
 
 export const putTask = async (req: Request, res: Response) => {
-    const taskId = Number(req.body.id);
-    const userId = Number(req.user?.id);
+    try {
 
-    const { title, description, dueDate, done } = req.body;
+        
+        const taskId = Number(req.params.id);
+        const userId = Number(req.user?.id);
 
-    const response = await TasksServices.updateFullTask(taskId, userId, title, description, done, dueDate);
+        if (isNaN(taskId)) return res.status(400).json({ error: 'Invalid task ID.' });
 
-    return res.status(response.status).json(response.body);
-}
+        if (!req.body) return res.status(400).json({ error: 'Request body is missing.' });
+
+        const { title, description, dueDate, done } = req.body;
+
+        const response = await TasksServices.updateFullTask(taskId, userId, title, description, done, dueDate);
+
+        return res.status(response.status).json(response.body);
+    } catch (error) {
+        return res.status(500).json({ error: 'Internal Server Error.' });
+    }
+};
 
 export const patchTask = async (req: Request, res: Response) => {
-    const taskId = Number(req.params.id);
-    const userId = Number(req.user?.id);
+    try {
+        const taskId = Number(req.params.id);
+        const userId = Number(req.user?.id);
 
-    const allowedFields = ['title', 'description', 'dueDate', 'done'];
+        if (!req.body) return res.status(400).json({ error: 'Request body is missing.' });
 
-    const dataToUpdate: Record<string, any> = {};
+        const allowedFields = ['title', 'description', 'dueDate', 'done'];
 
-    for (const field of allowedFields) {
-        if (req.body[field] !== undefined) {
-            dataToUpdate[field] = req.body[field];
+        const dataToUpdate: Record<string, any> = {};
+
+        for (const field of allowedFields) {
+            if (req.body[field] !== undefined) {
+                dataToUpdate[field] = req.body[field];
+            };
         };
-    };
 
-    const response = await TasksServices.updateTaskPiece(taskId, userId, dataToUpdate);
+        const response = await TasksServices.updateTaskPiece(taskId, userId, dataToUpdate);
 
-    return res.status(response.status).json(response.body);
-}
+        return res.status(response.status).json(response.body);
+    } catch (error) {
+        return res.status(500).json({ error: 'Internal Server Error.' });
+    }
+};
 
 export const deleteTask = async (req: Request, res: Response) => {
-    const taskId = Number(req.params.id);
-    const userId = Number(req.user?.id);
+    try {
+        const taskId = Number(req.params.id);
+        const userId = Number(req.user?.id);
 
-    const existingTask = TasksServices.getTaskById(taskId, userId);
+        const existingTask = await TasksServices.getTaskById(taskId, userId);
 
-    if (!existingTask) return res.status(404).json({ error: 'Task not found.' });
+        if (!existingTask) return res.status(404).json({ error: 'Task not found.' });
 
-    const deletedTask = await prisma.task.delete({
-        where: {
-            id: taskId,
-            userId
-        }
-    });
+        const deletedTask = await TasksServices.deleteTask(taskId, userId);
 
-    return res.status(200).json(deletedTask);
+        return res.status(200).json(deletedTask);
+    } catch (error) {
+        return res.status(500).json({ error: 'Internal Server Error.' });
+    }
 }
