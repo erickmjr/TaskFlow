@@ -30,7 +30,7 @@ export const createUser = async (name: string, email: string, hashedPassword: st
     return created;
 };
 
-export const getUserByid = async (userId: number) => {
+export const getUserById = async (userId: number) => {
     const user = await prisma.user.findFirst({
         where: { id: userId }
     });
@@ -67,10 +67,10 @@ export const changeUserName = async (userId: number, name: string) => {
     return user;
 };
 
-export const changeUserPassword = async (userEmail: string, password: string) => {
+export const changeUserPassword = async (userId: number, password: string) => {
     const user = await prisma.user.update({
         where: {
-            email: userEmail
+            id: userId
         },
         data: {
             password: password

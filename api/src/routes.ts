@@ -3,12 +3,11 @@ import { authMiddleware } from './middlewares/auth-middleware';
 export const router = Router();
 import * as TasksController from './controllers/tasks-controller';
 import * as UserController from './controllers/user-controller';
-import { resetPasswordMiddleware } from './middlewares/reset-password-middleware';
 
 router.post('/user/register', UserController.registerUser);
 router.post('/user/login', UserController.loginUser);
 router.post('/user/forgot-password', UserController.forgotPassword);
-router.post('user/reset-password', resetPasswordMiddleware, UserController.resetPassword);
+router.post('/user/reset-password', UserController.resetPassword);
 router.get('/users', UserController.getAllUsers);
 
 router.get('/tasks', authMiddleware, TasksController.getUserTasks);

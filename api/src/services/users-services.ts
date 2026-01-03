@@ -2,7 +2,6 @@ import * as UsersRepository from '../repository/users-repository';
 import bcrypt from 'bcrypt';
 import jwt, { Secret } from 'jsonwebtoken';
 import { sendResetPasswordMail } from '../utils/sendResetPasswordMail';
-import { json } from 'express';
 
 export const getAllUsers = async () => {
     try {
@@ -31,13 +30,15 @@ export const registerUser = async (email: string, password: string, name: string
             return { status: 409, body: { message: 'Email already in use.' } };
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const saltRounds = Number(process.env.BCRYPT_SALT ?? 10);
+
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
 
         const created = await UsersRepository.createUser(name, email, hashedPassword);
 
         const token = jwt.sign(
             {
-                id: Number(created.id),
+                sub: String(created.id),
                 email: created.email
             },
             process.env.JWT_SECRET!,
@@ -98,7 +99,7 @@ export const loginUser = async (email: string, password: string) => {
 export const deleteUserById = async (userId: number) => {
 
     try {
-        const user = UsersRepository.deleteUserById(userId);
+        const user = await UsersRepository.deleteUserById(userId);
 
         return { status: 200, body: { message: 'User deleted', user } };
 
@@ -110,54 +111,82 @@ export const deleteUserById = async (userId: number) => {
 export const forgotPassword = async (email: string) => {
 
     try {
-        const user = UsersRepository.getUserByEmail(email);
+        const user = await UsersRepository.getUserByEmail(email);
 
-        if (!user) {
-            return { status: 204, body: { error: 'User does not exist.' } };
+        if (user) {
+            const tokenPassword = jwt.sign(
+                {
+                    sub: String(user.id),
+                    email: email,
+                    purpose: 'password-reset'
+                },
+                process.env.JWT_SECRET!,
+                {
+                    expiresIn: '15m'
+                }
+            )
+    
+            await sendResetPasswordMail(email, tokenPassword);
         }
 
-        const tokenPassword = jwt.sign(
-            {
-                email: email,
-                purpose: 'password-reset'
-            },
-            process.env.JWT_SECRET!,
-            {
-                expiresIn: '10m'
-            }
-        )
-
-        await sendResetPasswordMail(email, tokenPassword);
-
-        return { status: 200, body: { tokenPassword, message: 'E-mail sent.' } };
+        return { status: 200, body: { message: 'If the user exists, an e-mail was sent.' } };
 
     } catch (error) {
         return { status: 500, body: { error: 'Internal server error.' } };
     };
 };
 
-export const resetPassword = async (email: string, password: string) => {
+export const resetPassword = async (token: string, password: string) => {
+
+    let decoded: ResetPasswordTokenPayload;
 
     try {
+        
+        if (!token) return { status: 400, body: { message: 'Missing token.' } };
 
-        const user = await UsersRepository.getUserByEmail(email);
+        const secret: Secret | undefined = process.env.JWT_SECRET;
+        if (!secret) throw new Error("JWT_SECRET is not defined");
+
+        decoded = jwt.verify(token, secret) as ResetPasswordTokenPayload;
+
+        if (decoded.purpose !== 'password-reset') {
+            return { status: 400, body: { message: 'Invalid token purpose.' } };
+        }
+
+        const user = await UsersRepository.getUserById(Number(decoded.sub));
 
         if (!user) {
-            return { status: 204, body: { error: 'Internal error.' } };
+            return { status: 404, body: { message: 'User not found.' } };
         };
 
         if (!password || password.length < 8) {
-            return { status: 400, body: { message: 'Password must have at least 8 digits.' } };
+            return { status: 400, body: { message: 'Password must have at least 8 characters.' } };
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const saltRounds = Number(process.env.BCRYPT_SALT ?? 10);
 
-        const updatedUser = await UsersRepository.changeUserPassword(email, hashedPassword);
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-        return { status: 200, body: { message: 'Password updated', updatedUser } };
+        const userId = Number(decoded.sub);
+
+        if (Number.isNaN(userId)) {
+            return { status: 400, body: { message: 'Invalid token subject.' } };
+        }
+
+        await UsersRepository.changeUserPassword(userId, hashedPassword);
+
+        return { status: 200 };
 
     } catch (error) {
-        return { status: 500, body: { error: 'Internal server error.' } }
-    }
 
+        if (error instanceof jwt.TokenExpiredError) {
+            return { status: 401, body: { message:  'Token expired' } };
+        }
+
+        if (error instanceof jwt.JsonWebTokenError) {
+            return { status: 401, body: { message: 'Invalid Token' } };
+        }
+
+        return { status: 500, body: { error: 'Internal server error.' } };
+    }
 }

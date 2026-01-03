@@ -78,7 +78,9 @@ export const resetPassword = async (req: Request, res: Response) => {
     try {
         const { token, newPassword } = req.body;
 
-        if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password are required.' });
+        if (!newPassword) return res.status(400).json({ error: 'New password are required.' });
+
+        if (!token) return res.status(400).json({ error: 'Missing token.' });
 
         const response = await UsersServices.resetPassword(token, newPassword);
 
